@@ -1,0 +1,422 @@
+:root {
+  color-scheme: dark;
+  font-family: 'SF Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0c0f16;
+  color: #e9ecf1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: radial-gradient(circle at 20% 20%, #1b2435, transparent 25%),
+    radial-gradient(circle at 80% 0%, #122f52, transparent 28%),
+    linear-gradient(145deg, #0c0f16 0%, #0c101d 40%, #090b13 100%);
+}
+
+#app {
+  min-height: 100vh;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.app-shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  min-height: 100vh;
+}
+
+.sidebar {
+  background: linear-gradient(180deg, rgba(22, 30, 46, 0.9) 0%, rgba(11, 16, 27, 0.9) 100%);
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 22px 18px 16px;
+  backdrop-filter: blur(10px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 22px;
+}
+
+.brand-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #f43f5e, #f97316);
+  display: grid;
+  place-items: center;
+  font-weight: 700;
+}
+
+.nav-group {
+  display: grid;
+  gap: 6px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  color: #c8d0e0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
+}
+
+.nav-item.active {
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.08), rgba(244, 63, 94, 0.12));
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fff;
+}
+
+.badge {
+  background: rgba(255, 255, 255, 0.08);
+  color: #cfe3ff;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+
+.content {
+  padding: 22px;
+  display: grid;
+  gap: 16px;
+}
+
+.grid {
+  display: grid;
+  gap: 16px;
+}
+
+.grid.two {
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+}
+
+.card {
+  background: rgba(16, 21, 33, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 16px;
+  padding: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e9ecf1;
+}
+
+.subtext {
+  color: #9fb1d3;
+  font-size: 13px;
+}
+
+.device-pane {
+  display: grid;
+  gap: 12px;
+}
+
+.device-frame {
+  background: linear-gradient(160deg, #121828, #0a0f1b);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.tablet-shell {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  border-radius: 18px;
+  padding: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04), inset 0 0 20px rgba(255, 255, 255, 0.04);
+}
+
+.tablet-wallpaper {
+  position: absolute;
+  inset: 6px;
+  border-radius: 14px;
+  background: radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.2), transparent 28%),
+    radial-gradient(circle at 70% 30%, rgba(0, 217, 255, 0.2), transparent 26%),
+    linear-gradient(135deg, #0d111a 0%, #10192c 50%, #0c0f16 100%);
+  overflow: hidden;
+}
+
+.tablet-wallpaper.fastboot {
+  background: linear-gradient(120deg, #0d111a 0%, #111827 45%, #1f2937 100%);
+}
+
+.tablet-wallpaper.fastbootd {
+  background: linear-gradient(135deg, #111827 0%, #92400e 45%, #f97316 100%);
+  color: #0c0f16;
+}
+
+.tablet-overlay {
+  position: absolute;
+  inset: 6px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+  pointer-events: none;
+}
+
+.tablet-label {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(5, 7, 12, 0.6);
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  color: #e6ebf4;
+  font-weight: 600;
+}
+
+.battery-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  color: #e9ecf1;
+}
+
+.battery-meter {
+  width: 54px;
+  height: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: relative;
+}
+
+.battery-fill {
+  position: absolute;
+  inset: 2px;
+  border-radius: 6px;
+  transition: width 0.3s ease;
+}
+
+.tablet-mode-banner {
+  position: absolute;
+  inset: 12px;
+  border-radius: 10px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  display: grid;
+  place-items: center;
+  color: #e9ecf1;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  backdrop-filter: blur(6px);
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+
+.info-pill {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.info-pill input {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: #e9ecf1;
+  width: 100%;
+}
+
+.info-label {
+  font-size: 11px;
+  color: #9fb1d3;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.info-value {
+  margin-top: 4px;
+  font-weight: 700;
+  color: #f8fbff;
+}
+
+.toolbar {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #e9ecf1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.button.primary {
+  background: linear-gradient(135deg, #f43f5e, #f97316);
+  border: none;
+  color: #0c0f16;
+  font-weight: 700;
+}
+
+.button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+}
+
+.terminal {
+  background: #0a0d14;
+  border-radius: 12px;
+  padding: 12px;
+  font-family: 'SF Mono', 'JetBrains Mono', 'Menlo', monospace;
+  color: #9fe8ff;
+  min-height: 140px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.root-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.root-card {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.kpi {
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.timeline {
+  display: grid;
+  gap: 12px;
+}
+
+.timeline-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #34d399;
+}
+
+.status-chip {
+  padding: 6px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.status-good {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.4);
+}
+
+.status-warn {
+  color: #f59e0b;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.status-bad {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.section-tabs {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tab {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+  color: #c8d0e0;
+  cursor: pointer;
+}
+
+.tab.active {
+  border-color: rgba(244, 63, 94, 0.6);
+  background: rgba(244, 63, 94, 0.15);
+  color: #fff;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  margin: 10px 0;
+}
+
+.small {
+  font-size: 12px;
+}
