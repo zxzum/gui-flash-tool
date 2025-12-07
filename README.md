@@ -16,21 +16,21 @@ scrcpy mirroring, and root tooling in one place.
    python -m pip install --upgrade pywebview
    ```
 
-2. **Install front-end deps and build the Preact bundle**:
+2. **Build everything with one command** (runs npm install + Vite build, then starts pywebview):
 
    ```bash
-   cd frontend
-   npm install
-   npm run build
+   make run
    ```
 
-   The compiled assets land in `frontend/dist`, which pywebview will load first. During UI work
-   you can also run `npm run dev` and point pywebview to the dev server if desired.
+   The helper `Makefile` installs front-end deps into `frontend/node_modules`, produces the
+   `frontend/dist` bundle with a relative base (no manual HTML edits), and boots the Python
+   window.
 
-3. **Launch the UI preview**:
+   You can still run steps manually if you prefer:
 
    ```bash
-   python -m app.main
+   cd frontend && npm install && npm run build
+   cd .. && python -m app.main
    ```
 
    The window prefers the built bundle in `frontend/dist/index.html` and falls back to the root

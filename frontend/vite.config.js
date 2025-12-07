@@ -5,6 +5,7 @@ import path from 'path';
 export default defineConfig({
   plugins: [preact()],
   root: path.resolve(__dirname),
+  base: './',
   build: {
     outDir: 'dist',
     emptyOutDir: true,
