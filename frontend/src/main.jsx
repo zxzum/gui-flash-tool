@@ -1,5 +1,6 @@
 import { h, render } from 'preact';
 import { useEffect, useMemo, useState } from 'preact/hooks';
+import { Toaster, toast } from 'react-hot-toast';
 import './app.css';
 import { callApi } from './api.js';
 
@@ -35,18 +36,15 @@ function BatteryBadge({ battery = {} }) {
   const capacityLabel = battery.capacity_label || battery.capacity_state;
   const fillColor = batteryColor(level, charging, saver, capacityLabel);
   return (
-    <div class="battery-chip">
-      <div class="battery-meter">
+    <div class="battery-chip compact">
+      <div class="battery-meter small">
         <div
           class="battery-fill"
           style={{ width: `${Math.min(100, Math.max(0, level))}%`, background: fillColor }}
         />
       </div>
-      <div class="battery-meta">
-        <span class="battery-level">{level === null || level === undefined ? '—' : `${level}%`}</span>
-        <span class="battery-state" style={{ color: fillColor }}>
-          {charging ? '⚡️' : saver ? '🟡' : '🔋'} {capacityLabel || ''}
-        </span>
+      <div class="battery-meta one-line" style={{ color: fillColor }}>
+        {charging ? '⚡️' : saver ? '🟡' : '🔋'} {level === null || level === undefined ? '—' : `${level}%`} {capacityLabel || ''}
       </div>
     </div>
   );
@@ -89,7 +87,7 @@ function PlatformToolsCard({ status, onRefresh }) {
   );
 }
 
-function DeviceGallery({ devices, onSelect }) {
+function DeviceGallery({ devices, onSelect, onRefreshWallpaper }) {
   return (
     <div class="gallery">
       <div class="gallery-head">
@@ -100,23 +98,24 @@ function DeviceGallery({ devices, onSelect }) {
       </div>
       <div class="gallery-grid">
         {devices.map((device) => (
-          <button key={device.serial} class="gallery-card" onClick={() => onSelect(device)}>
-            <div class="gallery-thumb">
+          <div key={device.serial} class="gallery-card">
+            <button class="gallery-thumb" onClick={() => onSelect(device)}>
               <div class={`tablet-shell small ${wallpaperClass(device.wallpaper_hint)}`} style={device.wallpaper_url ? { backgroundImage: `url(${device.wallpaper_url})` } : {}} />
-            </div>
+            </button>
             <div class="gallery-meta">
               <div class="card-title">{device.model}</div>
               <div class="subtext">{device.state} • {device.serial}</div>
               <div class="subtext">Android {device.android_version || '—'}</div>
             </div>
-          </button>
+            <button class="button ghost tiny" onClick={() => onRefreshWallpaper(device)}>…</button>
+          </div>
         ))}
       </div>
     </div>
   );
 }
 
-function DeviceHero({ device, onChangeDevice }) {
+function DeviceHero({ device, onChangeDevice, onCaptureWallpaper, onRotateWallpaper }) {
   if (!device) return null;
   const modeBanner = device.state === 'fastboot' ? 'FASTBOOT' : device.state === 'fastbootd' ? 'FASTBOOTD' : '';
   return (
@@ -125,9 +124,16 @@ function DeviceHero({ device, onChangeDevice }) {
         <div>
           <p class="muted">Universal Flasher Tool</p>
           <h2>{device.model || 'OnePlus Pad 2'}</h2>
-          <p class="subtext">{device.firmware_version || device.build || '—'}</p>
+          <p class="subtext">
+            {device.model_code ? `${device.model_code} • ` : ''}
+            <span class="firmware-tag">{device.firmware_version || device.build || '—'}</span>
+          </p>
         </div>
-        <button class="button ghost" onClick={onChangeDevice}>↩︎ Выбрать другое устройство</button>
+        <div class="hero-actions">
+          <button class="button ghost" onClick={onCaptureWallpaper}>📸 Получить заставку</button>
+          <button class="button ghost" onClick={onRotateWallpaper}>… Сменить мокап</button>
+          <button class="button ghost" onClick={onChangeDevice}>↩︎ Выбрать другое устройство</button>
+        </div>
       </div>
       <div class="hero-body">
         <div class="tablet-shell" style={device.wallpaper_url ? { backgroundImage: `url(${device.wallpaper_url})` } : {}}>
@@ -147,7 +153,7 @@ function DeviceHero({ device, onChangeDevice }) {
           </div>
           <div class="summary-card">
             <div class="info-label">Прошивка</div>
-            <div class="info-value">{device.firmware_version || device.build || '—'}</div>
+            <div class="info-value break">{device.firmware_version || device.build || '—'}</div>
             <div class="muted">Bootloader: {device.bootloader}</div>
           </div>
           <div class="summary-card">
@@ -166,7 +172,7 @@ function DeviceHero({ device, onChangeDevice }) {
   );
 }
 
-function ActionPalette({ filter, onFilterChange, selected, onSelect }) {
+function ActionPalette({ filter, onFilterChange, selected, onSelect, collapsed, onToggleCollapse }) {
   const filtered = useMemo(
     () =>
       actions.filter(
@@ -178,36 +184,54 @@ function ActionPalette({ filter, onFilterChange, selected, onSelect }) {
   );
 
   return (
-    <div class="palette">
+    <div class={`palette ${collapsed ? 'collapsed' : ''}`}>
       <div class="palette-head">
-        <h3>Действия</h3>
-        <input
-          class="search"
-          value={filter}
-          onInput={(e) => onFilterChange(e.target.value)}
-          placeholder="Поиск по действиям"
-        />
+        <div class="palette-title-row">
+          <h3>Действия</h3>
+          <button class="button ghost" onClick={onToggleCollapse}>{collapsed ? '▶' : '◀'}</button>
+        </div>
+        {!collapsed && (
+          <input
+            class="search"
+            value={filter}
+            onInput={(e) => onFilterChange(e.target.value)}
+            placeholder="Поиск по действиям"
+          />
+        )}
       </div>
-      <div class="palette-grid">
-        {filtered.map((action) => (
-          <button
-            key={action.id}
-            class={`palette-card ${selected === action.id ? 'active' : ''}`}
-            onClick={() => onSelect(action.id)}
-          >
-            <div class="palette-icon">{action.icon}</div>
-            <div>
-              <div class="card-title">{action.title}</div>
-              <div class="subtext">{action.subtitle}</div>
-            </div>
-          </button>
-        ))}
-      </div>
+      {!collapsed && (
+        <div class="palette-grid">
+          {filtered.map((action) => (
+            <button
+              key={action.id}
+              class={`palette-card ${selected === action.id ? 'active' : ''}`}
+              onClick={() => onSelect(action.id)}
+            >
+              <div class="palette-icon">{action.icon}</div>
+              <div>
+                <div class="card-title">{action.title}</div>
+                <div class="subtext">{action.subtitle}</div>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function FlashPanel({ firmwarePath, onPathChange, onValidate, onFlash, log }) {
+function FlashPanel({
+  firmwarePath,
+  onPathChange,
+  onValidate,
+  onFlash,
+  log,
+  deviceState,
+  tree,
+  validation,
+  consoleCollapsed,
+  onToggleConsole,
+}) {
   const handleDrop = (event) => {
     event.preventDefault();
     const file = event.dataTransfer?.files?.[0];
@@ -220,30 +244,45 @@ function FlashPanel({ firmwarePath, onPathChange, onValidate, onFlash, log }) {
       <div class="card-header">
         <div>
           <div class="card-title">Прошивка</div>
-          <div class="subtext">Укажи архив, распакованную папку или перетащи любой img</div>
+          <div class="subtext">.zip / папка с img, drag & drop, проводник или ручной путь</div>
         </div>
         <div class="toolbar">
-          <button class="button" onClick={onValidate}>Проверить архив</button>
-          <button class="button primary" onClick={onFlash}>Старт прошивки</button>
+          <StatusPill state={deviceState} />
+          <button class="button" onClick={onValidate}>Проверить</button>
+          <button class="button primary" onClick={onFlash}>Старт</button>
         </div>
       </div>
-      <div class="grid two">
-        <div class="info-pill">
+      <div class="flash-grid">
+        <div class="path-column">
           <div class="info-label">Путь к прошивке</div>
-          <input
-            style={{ width: '100%', marginTop: '6px' }}
-            value={firmwarePath}
-            placeholder="/Users/me/Downloads/OxygenOS.zip"
-            onInput={(e) => onPathChange(e.target.value)}
-          />
-          <label class="file-input">
-            <input type="file" onChange={(e) => onPathChange(e.target.files?.[0]?.path || e.target.files?.[0]?.name || '')} />
-            <span>Выбрать файл</span>
-          </label>
+          <div class="path-row">
+            <input
+              class="path-input"
+              value={firmwarePath}
+              placeholder="/Users/me/Downloads/OxygenOS.zip или /firmware/extracted"
+              onInput={(e) => onPathChange(e.target.value)}
+            />
+            <label class="file-input">
+              <input type="file" webkitdirectory="true" onChange={(e) => onPathChange(e.target.files?.[0]?.path || e.target.files?.[0]?.name || '')} />
+              <span>Выбрать</span>
+            </label>
+          </div>
+          {validation && (
+            <div class={`validation ${validation.is_valid ? 'valid' : 'invalid'}`}>
+              <div>{validation.message}</div>
+              {!!validation.missing?.length && <div class="muted">Отсутствует: {validation.missing.join(', ')}</div>}
+              {!!validation.present?.length && <div class="muted">Обнаружено: {validation.present.join(', ')}</div>}
+            </div>
+          )}
+          <div class="info-label">Обзор содержимого</div>
+          <FirmwareTree tree={tree} />
         </div>
-        <div class="info-pill">
-          <div class="info-label">Консоль</div>
-          <div class="terminal small">{log.join('\n')}</div>
+        <div class="console-column">
+          <div class="console-header">
+            <div class="info-label">Консоль прошивки</div>
+            <button class="button ghost" onClick={onToggleConsole}>{consoleCollapsed ? '▼' : '▲'} Свернуть</button>
+          </div>
+          {!consoleCollapsed && <div class="terminal full">{log.join('\n')}</div>}
         </div>
       </div>
     </div>
@@ -345,6 +384,28 @@ function ToolPanel({ onScrcpyStart, onScrcpyStop, log }) {
   );
 }
 
+function StatusPill({ state }) {
+  const color = state === 'fastbootd' ? '#f97316' : state === 'fastboot' ? '#14b8a6' : '#22c55e';
+  const label = state === 'fastbootd' ? 'FASTBOOTD' : state === 'fastboot' ? 'FASTBOOT' : 'ADB';
+  return (
+    <span class="status-pill" style={{ background: `${color}1a`, color }}>
+      ● {label}
+    </span>
+  );
+}
+
+function FirmwareTree({ tree }) {
+  if (!tree) return null;
+  const renderNode = (node, depth = 0) => (
+    <div class="tree-node" style={{ paddingLeft: `${depth * 12}px` }}>
+      <span class="tree-branch">{node.type === 'dir' ? '📁' : '📄'}</span>
+      <span>{node.name}</span>
+      {(node.children || []).map((child) => renderNode(child, depth + 1))}
+    </div>
+  );
+  return <div class="tree-view">{renderNode(tree)}</div>;
+}
+
 function Placeholder() {
   return (
     <div class="placeholder">
@@ -366,10 +427,14 @@ function App() {
   const [rootTools, setRootTools] = useState([]);
   const [diagnostics, setDiagnostics] = useState({ storage: '—', battery: '—', thermals: '—', safety: {} });
   const [actionFilter, setActionFilter] = useState('');
-  const [selectedAction, setSelectedAction] = useState(null);
+  const [selectedAction, setSelectedAction] = useState('flash');
   const [showPicker, setShowPicker] = useState(false);
+  const [paletteCollapsed, setPaletteCollapsed] = useState(false);
+  const [consoleCollapsed, setConsoleCollapsed] = useState(false);
+  const [firmwareTree, setFirmwareTree] = useState(null);
+  const [validation, setValidation] = useState(null);
 
-  const appendLog = (line) => setConsoleLog((prev) => [...prev.slice(-100), line]);
+  const appendLog = (line) => setConsoleLog((prev) => [...prev.slice(-120), line]);
 
   const refreshPlatform = async () => {
     const status = await callApi('platform_tools_status');
@@ -394,6 +459,11 @@ function App() {
     setRootTools(tools);
   };
 
+  const loadFirmwareTree = async () => {
+    const tree = await callApi('inspect_firmware_tree');
+    setFirmwareTree(tree?.tree);
+  };
+
   useEffect(() => {
     refreshPlatform();
     refreshDevices();
@@ -408,20 +478,32 @@ function App() {
     refreshDiagnostics();
   };
 
+  const handlePathChange = async (path) => {
+    setFirmwarePath(path);
+    if (path) {
+      await callApi('set_firmware_path', path);
+      loadFirmwareTree();
+    }
+  };
+
   const handleValidate = async () => {
     if (firmwarePath) await callApi('set_firmware_path', firmwarePath);
     const result = await callApi('validate_firmware');
+    setValidation(result);
     appendLog(`Валидация: ${result.message}`);
+    toast[result.is_valid ? 'success' : 'error'](result.message);
   };
 
   const handleFlash = async () => {
     const result = await callApi('flash');
     appendLog(`Прошивка: ${result.status} — ${result.message}`);
+    toast('Запущено: ' + (result.message || '')); 
   };
 
   const handlePrepareRoot = async (tool) => {
     const result = await callApi('prepare_root', tool);
     appendLog(`${tool}: ${result.message}`);
+    toast(result.message);
   };
 
   const handleScrcpyStart = async () => {
@@ -434,10 +516,44 @@ function App() {
     appendLog(`scrcpy: ${result.message}`);
   };
 
+  const handleCaptureWallpaper = async () => {
+    if (!selectedDevice) return;
+    const result = await callApi('refresh_wallpaper', selectedDevice.serial, selectedDevice.model);
+    if (result?.wallpaper) {
+      toast.success('Заставка обновлена');
+      setSelectedDevice((prev) => ({ ...prev, wallpaper_url: result.wallpaper }));
+    } else {
+      toast.error('Не удалось получить заставку');
+    }
+  };
+
+  const handleRotateWallpaper = async (device) => {
+    const target = device || selectedDevice;
+    if (!target) return;
+    const result = await callApi('rotate_mock_image', target.serial, target.model);
+    if (result?.wallpaper) {
+      setSelectedDevice((prev) => (prev && prev.serial === target.serial ? { ...prev, wallpaper_url: result.wallpaper } : prev));
+      setDevices((prev) => prev.map((d) => (d.serial === target.serial ? { ...d, wallpaper_url: result.wallpaper } : d)));
+    }
+  };
+
   const renderAction = () => {
     switch (selectedAction) {
       case 'flash':
-        return <FlashPanel firmwarePath={firmwarePath} onPathChange={setFirmwarePath} onValidate={handleValidate} onFlash={handleFlash} log={consoleLog} />;
+        return (
+          <FlashPanel
+            firmwarePath={firmwarePath}
+            onPathChange={handlePathChange}
+            onValidate={handleValidate}
+            onFlash={handleFlash}
+            log={consoleLog}
+            deviceState={selectedDevice?.state}
+            tree={firmwareTree}
+            validation={validation}
+            consoleCollapsed={consoleCollapsed}
+            onToggleConsole={() => setConsoleCollapsed((v) => !v)}
+          />
+        );
       case 'root':
         return <RootPanel tools={rootTools} onPrepare={handlePrepareRoot} />;
       case 'diagnostics':
@@ -459,20 +575,35 @@ function App() {
           <p class="subtext">Выберите устройство, проверим Platform-Tools и начнем прошивку</p>
           <PlatformToolsCard status={platformStatus} onRefresh={refreshPlatform} />
         </div>
-        <DeviceGallery devices={devices} onSelect={handleDeviceSelect} />
+        <DeviceGallery devices={devices} onSelect={handleDeviceSelect} onRefreshWallpaper={handleRotateWallpaper} />
       </div>
     );
   }
 
   return (
     <div class="app-shell">
+      <Toaster position="bottom-right" />
       <div class="left-rail">
-        <DeviceHero device={selectedDevice} onChangeDevice={() => setShowPicker(true)} />
-        {showPicker && <DeviceGallery devices={devices} onSelect={handleDeviceSelect} />}
+        <DeviceHero
+          device={selectedDevice}
+          onChangeDevice={() => setShowPicker(true)}
+          onCaptureWallpaper={handleCaptureWallpaper}
+          onRotateWallpaper={handleRotateWallpaper}
+        />
+        {showPicker && (
+          <DeviceGallery devices={devices} onSelect={handleDeviceSelect} onRefreshWallpaper={handleRotateWallpaper} />
+        )}
       </div>
       <div class="right-panel">
-        <ActionPalette filter={actionFilter} onFilterChange={setActionFilter} selected={selectedAction} onSelect={setSelectedAction} />
-        <div class="action-area">{renderAction()}</div>
+        <ActionPalette
+          filter={actionFilter}
+          onFilterChange={setActionFilter}
+          selected={selectedAction}
+          onSelect={setSelectedAction}
+          collapsed={paletteCollapsed}
+          onToggleCollapse={() => setPaletteCollapsed((v) => !v)}
+        />
+        <div class={`action-area ${paletteCollapsed ? 'expanded' : ''}`}>{renderAction()}</div>
       </div>
     </div>
   );

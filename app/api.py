@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import json
 from dataclasses import dataclass, asdict
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
@@ -29,6 +30,7 @@ class DeviceInfo:
     charging_icon: str = "charging"
     wallpaper_url: Optional[str] = None
     firmware_version: Optional[str] = None
+    model_code: Optional[str] = None
     sdk_version: Optional[str] = None
     soc: Optional[Dict[str, Any]] = None
     kernel: Optional[Dict[str, str]] = None
@@ -59,10 +61,17 @@ class FlasherAPI:
     data handling.
     """
 
+    DATA_DIR = Path(__file__).resolve().parent / "data"
+    WALLPAPER_DIR = DATA_DIR / "wallpapers"
+    MEDIA_INDEX = DATA_DIR / "device_media.json"
+
     def __init__(self) -> None:
         self.firmware_path: Optional[Path] = None
         self.selected_device: Optional[str] = None
         self.device_cache: Dict[str, DeviceInfo] = {}
+        self.DATA_DIR.mkdir(exist_ok=True)
+        self.WALLPAPER_DIR.mkdir(parents=True, exist_ok=True)
+        self.media_index: Dict[str, Dict[str, str]] = self._load_media_index()
 
     # Utility -----------------------------------------------------------
     @staticmethod
@@ -121,6 +130,27 @@ class FlasherAPI:
         return battery
 
     @staticmethod
+    def _parse_usage_percent(value: str) -> Optional[float]:
+        try:
+            return float(value.strip().replace("%", ""))
+        except ValueError:
+            return None
+
+    def _load_media_index(self) -> Dict[str, Dict[str, str]]:
+        if not self.MEDIA_INDEX.exists():
+            return {}
+        try:
+            return json.loads(self.MEDIA_INDEX.read_text())
+        except Exception:
+            return {}
+
+    def _save_media_index(self) -> None:
+        try:
+            self.MEDIA_INDEX.write_text(json.dumps(self.media_index, indent=2))
+        except Exception:
+            pass
+
+    @staticmethod
     def _read_prop(serial: str, prop: str) -> Optional[str]:
         ok, output = FlasherAPI._run(["adb", "-s", serial, "shell", "getprop", prop])
         return output.strip() if ok and output else None
@@ -128,7 +158,12 @@ class FlasherAPI:
     def _collect_device_detail(self, serial: str) -> DeviceInfo:
         build = self._read_prop(serial, "ro.build.display.id") or "Unknown build"
         firmware_version = build.split()[0] if build else None
+        if firmware_version and "_" in firmware_version:
+            parts = firmware_version.split("_", 1)
+            if len(parts) == 2:
+                firmware_version = parts[1]
         model = self._read_prop(serial, "ro.product.model") or "Android Device"
+        model_code = model if model and model.startswith("OP") else None
         android_version = self._read_prop(serial, "ro.build.version.release")
         sdk_version = self._read_prop(serial, "ro.build.version.sdk")
         bootloader = self._read_prop(serial, "ro.boot.verifiedbootstate") or "unknown"
@@ -172,12 +207,17 @@ class FlasherAPI:
         if ok_df and df_out:
             storage = self._parse_storage(df_out)
 
+        wallpaper_url = self.media_index.get(serial, {}).get("wallpaper")
+        if not wallpaper_url:
+            wallpaper_url = "https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80"
+
         return DeviceInfo(
             serial=serial,
             state="device",
             model=model,
             build=build,
             firmware_version=firmware_version,
+            model_code=model_code,
             bootloader=bootloader,
             is_rooted=rooted,
             android_version=android_version,
@@ -186,7 +226,7 @@ class FlasherAPI:
             soc=soc,
             kernel=kernel,
             storage=storage,
-            wallpaper_url="https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80",
+            wallpaper_url=wallpaper_url,
         )
 
     @staticmethod
@@ -218,8 +258,14 @@ class FlasherAPI:
         if size:
             nominal = min(nominal_sizes, key=lambda n: abs(n - size))
         recalculated_used = None
-        if nominal and size and used is not None:
+        if nominal and usage:
+            usage_pct = self._parse_usage_percent(usage)
+            if usage_pct is not None:
+                recalculated_used = round((nominal * usage_pct) / 100, 1)
+        if recalculated_used is None and nominal and size and used is not None:
             recalculated_used = round((used / size) * nominal, 1)
+        if recalculated_used is None and nominal and avail is not None:
+            recalculated_used = round(max(nominal - avail, 0), 1)
 
         return {
             "raw": {"size_gb": size, "used_gb": used, "avail_gb": avail, "usage": usage},
@@ -227,6 +273,67 @@ class FlasherAPI:
             "normalized_used_gb": recalculated_used,
             "summary": f"{recalculated_used or used or '—'}/{nominal or size or '—'}",
         }
+
+    # Media helpers ----------------------------------------------------
+    def _capture_lock_wallpaper(self, serial: str) -> Optional[str]:
+        dest = self.WALLPAPER_DIR / f"{serial}.png"
+        cmds = [
+            ["adb", "-s", serial, "shell", "cmd", "power", "sleep"],
+            ["adb", "-s", serial, "shell", "input", "keyevent", "224"],
+            ["adb", "-s", serial, "shell", "settings", "put", "system", "user_rotation", "0"],
+            ["adb", "-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0"],
+            ["adb", "-s", serial, "shell", "screencap", "-p", "/sdcard/lock.png"],
+            ["adb", "-s", serial, "pull", "/sdcard/lock.png", str(dest)],
+            ["adb", "-s", serial, "shell", "settings", "put", "system", "accelerometer_rotation", "1"],
+        ]
+        success = False
+        for cmd in cmds:
+            ok, _ = self._run(cmd)
+            success = success or (ok and dest.exists())
+        if dest.exists():
+            return str(dest)
+        return None
+
+    @staticmethod
+    def _fallback_wallpapers(model: Optional[str]) -> List[str]:
+        defaults = [
+            "https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80",
+            "https://image01.oneplus.net/media/202408/17/08f67608a0b45d031b6a9bb4f3bb9224.png?x-amz-process=image/format,webp/quality,Q_80",
+        ]
+        model_key = (model or "").lower()
+        if "opd2403" in model_key or "pad 2" in model_key:
+            defaults.insert(0, "https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80")
+        return defaults
+
+    def refresh_wallpaper(self, serial: str, model: Optional[str] = None) -> Dict[str, Any]:
+        local_capture = self._capture_lock_wallpaper(serial)
+        chosen = local_capture
+        if not chosen:
+            fallbacks = self._fallback_wallpapers(model)
+            for candidate in fallbacks:
+                chosen = candidate
+                break
+        if chosen:
+            self.media_index[serial] = {"wallpaper": chosen}
+            self._save_media_index()
+            if serial in self.device_cache:
+                self.device_cache[serial].wallpaper_url = chosen
+        return {"wallpaper": chosen}
+
+    def rotate_mock_image(self, serial: str, model: Optional[str] = None) -> Dict[str, Any]:
+        options = self._fallback_wallpapers(model)
+        current = self.media_index.get(serial, {}).get("wallpaper")
+        if current in options:
+            idx = options.index(current)
+            chosen = options[(idx + 1) % len(options)]
+        else:
+            chosen = options[0] if options else None
+        if chosen:
+            self.media_index[serial] = {"wallpaper": chosen}
+            self._save_media_index()
+            if serial in self.device_cache:
+                self.device_cache[serial].wallpaper_url = chosen
+        return {"wallpaper": chosen}
 
     def _fastboot_devices(self) -> List[DeviceInfo]:
         ok, output = self._run(["fastboot", "devices"])
@@ -253,7 +360,10 @@ class FlasherAPI:
                     android_version=None,
                     wallpaper_hint="fastbootd" if mode == "fastbootd" else "fastboot",
                     charging_icon="plug",
-                    wallpaper_url="https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80",
+                    wallpaper_url=self.media_index.get(serial, {}).get(
+                        "wallpaper",
+                        "https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80",
+                    ),
                 )
             )
         return devices
@@ -327,12 +437,84 @@ class FlasherAPI:
         self.firmware_path = Path(path)
         return {"path": str(self.firmware_path), "exists": self.firmware_path.exists()}
 
+    def inspect_firmware_tree(self, max_depth: int = 2, max_entries: int = 120) -> Dict[str, Any]:
+        if not self.firmware_path:
+            return {"error": "path not set"}
+        base = self.firmware_path
+        if not base.exists():
+            return {"error": "path missing"}
+
+        def walk(path: Path, depth: int = 0) -> Dict[str, Any]:
+            node = {"name": path.name, "type": "dir" if path.is_dir() else "file"}
+            if path.is_dir() and depth < max_depth:
+                children = []
+                for child in sorted(path.iterdir()):
+                    if len(children) >= max_entries:
+                        break
+                    children.append(walk(child, depth + 1))
+                node["children"] = children
+            return node
+
+        return {"tree": walk(base)}
+
     def validate_firmware(self) -> Dict[str, Any]:
-        """Placeholder validation result."""
+        required_images = {
+            "boot.img",
+            "dtbo.img",
+            "init_boot.img",
+            "modem.img",
+            "recovery.img",
+            "vbmeta.img",
+            "vbmeta_system.img",
+            "vbmeta_vendor.img",
+            "vendor_boot.img",
+        }
+        optional_partitions = {
+            "super.img",
+            "my_bigball.img",
+            "my_carrier.img",
+            "my_company.img",
+            "my_engineering.img",
+            "my_heytap.img",
+            "my_manifest.img",
+            "my_preload.img",
+            "my_product.img",
+            "my_region.img",
+            "my_stock.img",
+            "odm.img",
+            "product.img",
+            "system.img",
+            "system_dlkm.img",
+            "system_ext.img",
+            "vendor.img",
+            "vendor_dlkm.img",
+        }
+        if not self.firmware_path:
+            return {"path": None, "is_valid": False, "message": "Не указан путь"}
+        if not self.firmware_path.exists():
+            return {"path": str(self.firmware_path), "is_valid": False, "message": "Путь не найден"}
+
+        files_present: set[str] = set()
+        base = self.firmware_path
+        if base.is_file():
+            suffix = base.suffix.lower()
+            if suffix == ".zip":
+                return {"path": str(base), "is_valid": False, "message": "Нужна распаковка архива (.zip) перед прошивкой"}
+            files_present = {base.name}
+        else:
+            for child in base.iterdir():
+                if child.is_file():
+                    files_present.add(child.name)
+
+        missing = sorted(list(required_images - files_present))
+        maybe_present = sorted(list(files_present & (required_images | optional_partitions)))
+        is_valid = not missing and bool(files_present)
         return {
-            "path": str(self.firmware_path) if self.firmware_path else None,
-            "is_valid": bool(self.firmware_path and self.firmware_path.exists()),
-            "message": "Validation routine not yet implemented.",
+            "path": str(self.firmware_path),
+            "is_valid": is_valid,
+            "message": "Готово к прошивке" if is_valid else "Не хватает обязательных образов",
+            "missing": missing,
+            "present": maybe_present,
         }
 
     # Flashing ---------------------------------------------------------

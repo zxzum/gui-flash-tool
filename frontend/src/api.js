@@ -46,6 +46,12 @@ export async function callApi(method, ...args) {
       ];
     case 'validate_firmware':
       return { path: '/path/to/archive', is_valid: false, message: 'Mocked validation' };
+    case 'inspect_firmware_tree':
+      return { tree: { name: 'firmware', type: 'dir', children: [{ name: 'boot.img', type: 'file' }] } };
+    case 'refresh_wallpaper':
+      return { wallpaper: 'https://image01.oneplus.net/media/202407/09/fba6399523cbd6126ddcedb6920c9046.png?x-amz-process=image/format,webp/quality,Q_80' };
+    case 'rotate_mock_image':
+      return { wallpaper: 'https://image01.oneplus.net/media/202408/17/08f67608a0b45d031b6a9bb4f3bb9224.png?x-amz-process=image/format,webp/quality,Q_80' };
     case 'flash':
       return { status: 'queued', message: 'Mock flash scheduled' };
     case 'start_scrcpy':
