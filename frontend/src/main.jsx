@@ -1,21 +1,24 @@
 import { h, render } from 'preact';
-import { useEffect, useState } from 'preact/hooks';
+import { useEffect, useMemo, useState } from 'preact/hooks';
 import './app.css';
 import { callApi } from './api.js';
 
-const navItems = [
-  { id: 'device', label: 'Устройство', icon: '📱' },
-  { id: 'flash', label: 'Прошивка', icon: '🚀' },
-  { id: 'root', label: 'Root / Mods', icon: '🧰' },
-  { id: 'diagnostics', label: 'Диагностика', icon: '🔍' },
-  { id: 'tools', label: 'Инструменты', icon: '🖥️' },
+const actions = [
+  { id: 'flash', icon: '🚀', title: 'Прошивка OnePlus', subtitle: 'OxygenOS архива или папки с образами' },
+  { id: 'scrcpy', icon: '🖥️', title: 'Посмотреть экран (scrcpy)', subtitle: 'Зеркалирование и управление' },
+  { id: 'adb', icon: '🛠️', title: 'Работа с ADB', subtitle: 'shell, logcat, быстрая перезагрузка' },
+  { id: 'adb-tweaks', icon: '✨', title: 'Твики ADB', subtitle: 'gms doze, анимации, сетевые опции' },
+  { id: 'root', icon: '🧰', title: 'Получение ROOT', subtitle: 'Magisk / KernelSU + модули' },
+  { id: 'diagnostics', icon: '🔍', title: 'Диагностика', subtitle: 'SoC, ядро, батарея, память' },
+  { id: 'platform', icon: '📦', title: 'Platform-Tools', subtitle: 'Проверка adb / fastboot / PATH' },
 ];
 
-const batteryColor = (level = 0, charging, saver) => {
+const batteryColor = (level = 0, charging, saver, capacityLabel) => {
   if (charging) return '#34d399';
   if (saver) return '#fcd34d';
-  if (level <= 20) return '#f87171';
-  if (level <= 40) return '#f59e0b';
+  if (capacityLabel && capacityLabel === 'CRITICAL') return '#f87171';
+  if (level <= 15) return '#f87171';
+  if (level <= 35) return '#f59e0b';
   return '#22d3ee';
 };
 
@@ -25,29 +28,27 @@ const wallpaperClass = (hint) => {
   return 'oxygen';
 };
 
-function Sidebar({ active, onSelect }) {
+function BatteryBadge({ battery = {} }) {
+  const level = battery.level ?? 0;
+  const saver = battery.power_save;
+  const charging = battery.charging;
+  const capacityLabel = battery.capacity_label || battery.capacity_state;
+  const fillColor = batteryColor(level, charging, saver, capacityLabel);
   return (
-    <aside class="sidebar">
-      <div class="brand">
-        <div class="brand-logo">OP</div>
-        <div>
-          <div class="card-title">OnePlus Pad 2</div>
-          <div class="subtext">Universal Flasher</div>
-        </div>
+    <div class="battery-chip">
+      <div class="battery-meter">
+        <div
+          class="battery-fill"
+          style={{ width: `${Math.min(100, Math.max(0, level))}%`, background: fillColor }}
+        />
       </div>
-      <div class="nav-group">
-        {navItems.map((item) => (
-          <div
-            key={item.id}
-            class={`nav-item ${active === item.id ? 'active' : ''}`}
-            onClick={() => onSelect(item.id)}
-          >
-            <span>{item.icon}</span>
-            <span>{item.label}</span>
-          </div>
-        ))}
+      <div class="battery-meta">
+        <span class="battery-level">{level === null || level === undefined ? '—' : `${level}%`}</span>
+        <span class="battery-state" style={{ color: fillColor }}>
+          {charging ? '⚡️' : saver ? '🟡' : '🔋'} {capacityLabel || ''}
+        </span>
       </div>
-    </aside>
+    </div>
   );
 }
 
@@ -57,7 +58,7 @@ function PlatformToolsCard({ status, onRefresh }) {
       <div class="card-header">
         <div>
           <div class="card-title">Platform-Tools</div>
-          <div class="subtext">Проверка adb / fastboot на macOS</div>
+          <div class="subtext">Проверка adb / fastboot для macOS (M-chip)</div>
         </div>
         <button class="button" onClick={onRefresh}>↻ Обновить</button>
       </div>
@@ -88,85 +89,138 @@ function PlatformToolsCard({ status, onRefresh }) {
   );
 }
 
-function BatteryChip({ battery = {} }) {
-  const level = battery.level ?? 0;
-  const saver = battery.power_save;
-  const charging = battery.charging;
-  const fillColor = batteryColor(level, charging, saver);
+function DeviceGallery({ devices, onSelect }) {
   return (
-    <div class="battery-chip">
-      <div class="battery-meter">
-        <div
-          class="battery-fill"
-          style={{ width: `${Math.min(100, Math.max(0, level))}%`, background: fillColor }}
-        />
+    <div class="gallery">
+      <div class="gallery-head">
+        <div>
+          <h2>Подключенные устройства</h2>
+          <p class="subtext">ADB / fastboot / fastbootd определение</p>
+        </div>
       </div>
-      <div>{level === null || level === undefined ? '—' : `${level}%`} </div>
-      <div style={{ color: fillColor }}>{charging ? '⚡️' : saver ? '🟡' : '🔋'}</div>
+      <div class="gallery-grid">
+        {devices.map((device) => (
+          <button key={device.serial} class="gallery-card" onClick={() => onSelect(device)}>
+            <div class="gallery-thumb">
+              <div class={`tablet-shell small ${wallpaperClass(device.wallpaper_hint)}`} style={device.wallpaper_url ? { backgroundImage: `url(${device.wallpaper_url})` } : {}} />
+            </div>
+            <div class="gallery-meta">
+              <div class="card-title">{device.model}</div>
+              <div class="subtext">{device.state} • {device.serial}</div>
+              <div class="subtext">Android {device.android_version || '—'}</div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
 
-function DeviceCard({ device }) {
+function DeviceHero({ device, onChangeDevice }) {
   if (!device) return null;
   const modeBanner = device.state === 'fastboot' ? 'FASTBOOT' : device.state === 'fastbootd' ? 'FASTBOOTD' : '';
   return (
-    <div class="card device-pane">
-      <div class="card-header">
+    <div class="hero">
+      <div class="hero-header">
         <div>
-          <div class="card-title">Подключенное устройство</div>
-          <div class="subtext">ADB/Fastboot автоопределение</div>
+          <p class="muted">Universal Flasher Tool</p>
+          <h2>{device.model || 'OnePlus Pad 2'}</h2>
+          <p class="subtext">{device.firmware_version || device.build || '—'}</p>
         </div>
-        <div class="badge">{device.state}</div>
+        <button class="button ghost" onClick={onChangeDevice}>↩︎ Выбрать другое устройство</button>
       </div>
-      <div class="device-frame">
-        <div class="tablet-shell">
+      <div class="hero-body">
+        <div class="tablet-shell" style={device.wallpaper_url ? { backgroundImage: `url(${device.wallpaper_url})` } : {}}>
           <div class={`tablet-wallpaper ${wallpaperClass(device.wallpaper_hint)}`} />
           <div class="tablet-overlay" />
           {modeBanner && <div class="tablet-mode-banner">{modeBanner}</div>}
           <div class="tablet-label">
-            <span>OnePlus Pad 2</span>
-            <BatteryChip battery={device.battery} />
+            <span>{device.model || 'OnePlus Pad 2'}</span>
+            <BatteryBadge battery={device.battery} />
           </div>
         </div>
-        <div class="info-grid">
-          <div class="info-pill">
-            <div class="info-label">Модель</div>
-            <div class="info-value">{device.model}</div>
-          </div>
-          <div class="info-pill">
-            <div class="info-label">Сборка</div>
-            <div class="info-value">{device.build}</div>
-          </div>
-          <div class="info-pill">
+        <div class="summary-grid">
+          <div class="summary-card">
             <div class="info-label">Android</div>
             <div class="info-value">{device.android_version || '—'}</div>
+            <div class="muted">SDK {device.sdk_version || '—'}</div>
           </div>
-          <div class="info-pill">
-            <div class="info-label">Bootloader</div>
-            <div class="info-value">{device.bootloader}</div>
+          <div class="summary-card">
+            <div class="info-label">Прошивка</div>
+            <div class="info-value">{device.firmware_version || device.build || '—'}</div>
+            <div class="muted">Bootloader: {device.bootloader}</div>
           </div>
-          <div class="info-pill">
+          <div class="summary-card">
+            <div class="info-label">Память</div>
+            <div class="info-value">{device.storage?.summary || '—'}</div>
+            <div class="muted">/data {device.storage?.raw?.usage || '—'}</div>
+          </div>
+          <div class="summary-card">
             <div class="info-label">Root</div>
             <div class="info-value">{device.is_rooted ? 'Да' : 'Нет'}</div>
-          </div>
-          <div class="info-pill">
-            <div class="info-label">Серийный</div>
-            <div class="info-value">{device.serial}</div>
+            <div class="muted">Статус: {device.state}</div>
           </div>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function ActionPalette({ filter, onFilterChange, selected, onSelect }) {
+  const filtered = useMemo(
+    () =>
+      actions.filter(
+        (action) =>
+          action.title.toLowerCase().includes(filter.toLowerCase()) ||
+          action.subtitle.toLowerCase().includes(filter.toLowerCase())
+      ),
+    [filter]
+  );
+
+  return (
+    <div class="palette">
+      <div class="palette-head">
+        <h3>Действия</h3>
+        <input
+          class="search"
+          value={filter}
+          onInput={(e) => onFilterChange(e.target.value)}
+          placeholder="Поиск по действиям"
+        />
+      </div>
+      <div class="palette-grid">
+        {filtered.map((action) => (
+          <button
+            key={action.id}
+            class={`palette-card ${selected === action.id ? 'active' : ''}`}
+            onClick={() => onSelect(action.id)}
+          >
+            <div class="palette-icon">{action.icon}</div>
+            <div>
+              <div class="card-title">{action.title}</div>
+              <div class="subtext">{action.subtitle}</div>
+            </div>
+          </button>
+        ))}
       </div>
     </div>
   );
 }
 
 function FlashPanel({ firmwarePath, onPathChange, onValidate, onFlash, log }) {
+  const handleDrop = (event) => {
+    event.preventDefault();
+    const file = event.dataTransfer?.files?.[0];
+    if (file) {
+      onPathChange(file.path || file.name);
+    }
+  };
   return (
-    <div class="card">
+    <div class="card action-card" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <div class="card-header">
         <div>
           <div class="card-title">Прошивка</div>
-          <div class="subtext">Укажи архив или распакованный набор образов</div>
+          <div class="subtext">Укажи архив, распакованную папку или перетащи любой img</div>
         </div>
         <div class="toolbar">
           <button class="button" onClick={onValidate}>Проверить архив</button>
@@ -182,6 +236,10 @@ function FlashPanel({ firmwarePath, onPathChange, onValidate, onFlash, log }) {
             placeholder="/Users/me/Downloads/OxygenOS.zip"
             onInput={(e) => onPathChange(e.target.value)}
           />
+          <label class="file-input">
+            <input type="file" onChange={(e) => onPathChange(e.target.files?.[0]?.path || e.target.files?.[0]?.name || '')} />
+            <span>Выбрать файл</span>
+          </label>
         </div>
         <div class="info-pill">
           <div class="info-label">Консоль</div>
@@ -194,7 +252,7 @@ function FlashPanel({ firmwarePath, onPathChange, onValidate, onFlash, log }) {
 
 function RootPanel({ tools, onPrepare }) {
   return (
-    <div class="card">
+    <div class="card action-card">
       <div class="card-header">
         <div>
           <div class="card-title">Root и модули</div>
@@ -217,13 +275,13 @@ function RootPanel({ tools, onPrepare }) {
   );
 }
 
-function DiagnosticsPanel({ diagnostics }) {
+function DiagnosticsPanel({ diagnostics, device }) {
   return (
-    <div class="card">
+    <div class="card action-card">
       <div class="card-header">
         <div>
           <div class="card-title">Диагностика</div>
-          <div class="subtext">Хранилище, термалы, безопасность</div>
+          <div class="subtext">SoC, ядро, батарея, хранилище</div>
         </div>
       </div>
       <div class="kpi-grid">
@@ -236,36 +294,33 @@ function DiagnosticsPanel({ diagnostics }) {
           <div class="info-value">{diagnostics.battery}</div>
         </div>
         <div class="kpi">
-          <div class="info-label">Температура</div>
-          <div class="info-value">{diagnostics.thermals}</div>
+          <div class="info-label">SoC</div>
+          <div class="info-value">{diagnostics.soc?.friendly || diagnostics.soc?.model || '—'}</div>
+          <div class="muted">{diagnostics.soc?.vendor || diagnostics.soc?.platform || ''}</div>
         </div>
         <div class="kpi">
-          <div class="info-label">Verified Boot</div>
-          <div class="info-value">{diagnostics.safety?.verified_boot ? 'ON' : 'OFF'}</div>
+          <div class="info-label">Ядро</div>
+          <div class="info-value">{diagnostics.kernel?.release || '—'}</div>
+          <div class="muted">{(diagnostics.kernel?.full || '').slice(0, 64)}</div>
         </div>
       </div>
       <div class="divider" />
-      <div class="timeline">
-        <div class="timeline-row">
-          <div class="dot" />
-          <div>
-            <div class="card-title">ADB snapshot</div>
-            <div class="subtext">Состояние и build.prop собраны</div>
-          </div>
+      <div class="terminal small">
+        {(diagnostics.soc?.cpuinfo || '').split('\n').slice(0, 8).join('\n') || 'cpuinfo недоступен'}
+      </div>
+      <div class="divider" />
+      <div class="info-grid">
+        <div class="info-pill">
+          <div class="info-label">Bootloader</div>
+          <div class="info-value">{device?.bootloader || '—'}</div>
         </div>
-        <div class="timeline-row">
-          <div class="dot" style={{ background: '#f59e0b' }} />
-          <div>
-            <div class="card-title">Bootloader</div>
-            <div class="subtext">lock/unlock + vbmeta сигналы</div>
-          </div>
+        <div class="info-pill">
+          <div class="info-label">Состояние</div>
+          <div class="info-value">{device?.state || '—'}</div>
         </div>
-        <div class="timeline-row">
-          <div class="dot" style={{ background: '#22d3ee' }} />
-          <div>
-            <div class="card-title">Fastbootd ready</div>
-            <div class="subtext">fastboot reboot fastboot проверка</div>
-          </div>
+        <div class="info-pill">
+          <div class="info-label">Root</div>
+          <div class="info-value">{device?.is_rooted ? 'Да' : 'Нет'}</div>
         </div>
       </div>
     </div>
@@ -274,7 +329,7 @@ function DiagnosticsPanel({ diagnostics }) {
 
 function ToolPanel({ onScrcpyStart, onScrcpyStop, log }) {
   return (
-    <div class="card">
+    <div class="card action-card">
       <div class="card-header">
         <div>
           <div class="card-title">Инструменты</div>
@@ -290,8 +345,16 @@ function ToolPanel({ onScrcpyStart, onScrcpyStop, log }) {
   );
 }
 
+function Placeholder() {
+  return (
+    <div class="placeholder">
+      <div class="card-title">Выберите действие</div>
+      <p class="subtext">Слева список действий: прошивка, диагностика, scrcpy, root</p>
+    </div>
+  );
+}
+
 function App() {
-  const [activeTab, setActiveTab] = useState('device');
   const [platformStatus, setPlatformStatus] = useState({ install_hint: '' });
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -302,8 +365,11 @@ function App() {
   ]);
   const [rootTools, setRootTools] = useState([]);
   const [diagnostics, setDiagnostics] = useState({ storage: '—', battery: '—', thermals: '—', safety: {} });
+  const [actionFilter, setActionFilter] = useState('');
+  const [selectedAction, setSelectedAction] = useState(null);
+  const [showPicker, setShowPicker] = useState(false);
 
-  const appendLog = (line) => setConsoleLog((prev) => [...prev.slice(-50), line]);
+  const appendLog = (line) => setConsoleLog((prev) => [...prev.slice(-100), line]);
 
   const refreshPlatform = async () => {
     const status = await callApi('platform_tools_status');
@@ -313,7 +379,9 @@ function App() {
   const refreshDevices = async () => {
     const list = await callApi('list_devices');
     setDevices(list);
-    setSelectedDevice(list[0] || null);
+    if (list.length && !selectedDevice) {
+      setSelectedDevice(list[0]);
+    }
   };
 
   const refreshDiagnostics = async () => {
@@ -332,6 +400,13 @@ function App() {
     refreshDiagnostics();
     loadRootTools();
   }, []);
+
+  const handleDeviceSelect = async (device) => {
+    setSelectedDevice(device);
+    setShowPicker(false);
+    await callApi('select_device', device.serial);
+    refreshDiagnostics();
+  };
 
   const handleValidate = async () => {
     if (firmwarePath) await callApi('set_firmware_path', firmwarePath);
@@ -359,32 +434,46 @@ function App() {
     appendLog(`scrcpy: ${result.message}`);
   };
 
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'device':
-        return (
-          <div class="grid">
-            <PlatformToolsCard status={platformStatus} onRefresh={refreshPlatform} />
-            <DeviceCard device={selectedDevice} />
-          </div>
-        );
+  const renderAction = () => {
+    switch (selectedAction) {
       case 'flash':
         return <FlashPanel firmwarePath={firmwarePath} onPathChange={setFirmwarePath} onValidate={handleValidate} onFlash={handleFlash} log={consoleLog} />;
       case 'root':
         return <RootPanel tools={rootTools} onPrepare={handlePrepareRoot} />;
       case 'diagnostics':
-        return <DiagnosticsPanel diagnostics={diagnostics} />;
-      case 'tools':
+        return <DiagnosticsPanel diagnostics={diagnostics} device={selectedDevice} />;
+      case 'scrcpy':
         return <ToolPanel onScrcpyStart={handleScrcpyStart} onScrcpyStop={handleScrcpyStop} log={consoleLog} />;
+      case 'platform':
+        return <PlatformToolsCard status={platformStatus} onRefresh={refreshPlatform} />;
       default:
-        return null;
+        return <Placeholder />;
     }
   };
 
+  if (!selectedDevice) {
+    return (
+      <div class="app-shell onboarding">
+        <div class="onboarding-pane">
+          <h1>Universal Flasher Tool</h1>
+          <p class="subtext">Выберите устройство, проверим Platform-Tools и начнем прошивку</p>
+          <PlatformToolsCard status={platformStatus} onRefresh={refreshPlatform} />
+        </div>
+        <DeviceGallery devices={devices} onSelect={handleDeviceSelect} />
+      </div>
+    );
+  }
+
   return (
     <div class="app-shell">
-      <Sidebar active={activeTab} onSelect={setActiveTab} />
-      <main class="content">{renderContent()}</main>
+      <div class="left-rail">
+        <DeviceHero device={selectedDevice} onChangeDevice={() => setShowPicker(true)} />
+        {showPicker && <DeviceGallery devices={devices} onSelect={handleDeviceSelect} />}
+      </div>
+      <div class="right-panel">
+        <ActionPalette filter={actionFilter} onFilterChange={setActionFilter} selected={selectedAction} onSelect={setSelectedAction} />
+        <div class="action-area">{renderAction()}</div>
+      </div>
     </div>
   );
 }
